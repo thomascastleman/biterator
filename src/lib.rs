@@ -1,5 +1,35 @@
 //! This crate provides [`Biterator`], a type for iterating over individual bits
 //! in a stream of bytes.
+//!
+//! # Example
+//! ```
+//! use biterator::{Biterator, Bit::*};
+//!
+//! let bytes = [0b00001111, 0b10101011];
+//! let b = Biterator::new(&bytes);
+//!
+//! assert_eq!(
+//!     b.collect::<Vec<_>>(),
+//!     vec![
+//!         Zero, Zero, Zero, Zero, One, One,  One, One,
+//!         One,  Zero, One,  Zero, One, Zero, One, One,
+//!     ]
+//! );
+//! ```
+//!
+//! Use it to find which bits are set in a stream:
+//! ```
+//! use biterator::{Biterator, Bit};
+//!
+//! let bytes = [0b00110101];
+//! let b = Biterator::new(&bytes);
+//!
+//! let set_bits: Vec<(usize, Bit)> = b.enumerate().filter(|(_, bit)| bit.is_one()).collect();
+//! assert_eq!(
+//!     set_bits,
+//!     vec![(2, Bit::One), (3, Bit::One), (5, Bit::One), (7, Bit::One)]
+//! );
+//! ```
 
 #[warn(missing_docs)]
 
@@ -31,6 +61,11 @@ impl std::convert::From<Bit> for bool {
     }
 }
 
+/// The bit index of the leftmost bit in a byte.
+const LEFTMOST_BIT_INDEX: u8 = 7;
+/// The bit index of the rightmost bit in a byte.
+const RIGHTMOST_BIT_INDEX: u8 = 0;
+
 /// An iterator over individual bits in a slice.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Biterator<'src> {
@@ -39,19 +74,17 @@ pub struct Biterator<'src> {
 }
 
 impl Biterator<'_> {
-    /// Construct a new `Biterator` to iterate over the bits in a given source,
+    /// Construct a new `Biterator` to iterate over the [`Bit`]s in a given source,
     /// which is a slice of bytes.
     pub fn new(source: &[u8]) -> Biterator<'_> {
         Biterator {
             source,
-            bit_index: 0,
+            bit_index: LEFTMOST_BIT_INDEX,
         }
     }
 }
 
-/// The maximum value of an index into a byte (0-7)
-const MAX_BIT_INDEX: u8 = 7;
-
+/// [`Biterator`] implements [`Iterator`] to provide an iterator over [`Bit`]s.
 impl std::iter::Iterator for Biterator<'_> {
     type Item = Bit;
 
@@ -61,14 +94,17 @@ impl std::iter::Iterator for Biterator<'_> {
         let byte = self.source.first()?;
 
         // Bitmask that will extract the bit indicated by bit_index
-        let current_bit_mask = 2u8.pow((MAX_BIT_INDEX - self.bit_index) as u32);
+        let current_bit_mask = 2u8.pow(self.bit_index as u32);
 
-        // Update the bit index to point to the next bit (wrapping)
-        self.bit_index = (self.bit_index + 1) % 8;
-
-        // If we just rolled over into a new byte, move along the source slice
-        if self.bit_index == 0 {
+        if self.bit_index == RIGHTMOST_BIT_INDEX {
+            // The rightmost bit of this byte has been reached, bit_index wraps
+            // and we move to the next byte of the source for the subsequent
+            // call to next().
             self.source = &self.source[1..];
+            self.bit_index = LEFTMOST_BIT_INDEX;
+        } else {
+            // Move one position to the right
+            self.bit_index -= 1;
         }
 
         if byte & current_bit_mask > 0 {
