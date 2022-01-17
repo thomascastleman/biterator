@@ -30,6 +30,17 @@
 //!     vec![(2, Bit::One), (3, Bit::One), (5, Bit::One), (7, Bit::One)]
 //! );
 //! ```
+//!
+//! Count the number of bits that are 0 in a buffer:
+//! ```
+//! use biterator::BiteratorExt;
+//!
+//! // There are 10 zeros here
+//! let buf = [0b00110011, 0b11001111, 0b01010101];
+//!
+//! let zero_bit_count= buf.iter().bits().filter(|&b| b.is_zero()).count();
+//! assert_eq!(zero_bit_count, 10);
+//! ```
 
 #![warn(missing_docs)]
 
@@ -83,6 +94,7 @@ impl std::convert::From<Bit> for bool {
     }
 }
 
+/// Similarly, booleans can be converted into Bits.
 impl std::convert::From<bool> for Bit {
     /// # Example
     /// ```
@@ -173,6 +185,38 @@ where
     }
 }
 
+/// An extension trait which allows iterators to easily convert themselves into
+/// [`Biterator`]s in method chains.
+///
+/// # Example
+/// ```
+/// # use biterator::BiteratorExt;
+/// let ones_in_nums_over_three = [1, 2, 3, 4, 5]
+///     .into_iter()
+///     .filter(|&n| n > 3)
+///     .bits()
+///     .filter(|b| b.is_one())
+///     .count();
+///
+/// assert_eq!(ones_in_nums_over_three, 3);
+/// ```
+pub trait BiteratorExt: Iterator + Sized {
+    /// Converts this type into a [`Biterator`].
+    fn bits(self) -> Biterator<Self>;
+}
+
+/// [`BiteratorExt`] is implemented for any iterator over items which can be borrowed
+/// as `u8`s. The implementation simply calls [`Biterator::new`].
+impl<Iter, B> BiteratorExt for Iter
+where
+    Iter: Iterator<Item = B>,
+    B: Borrow<u8>,
+{
+    fn bits(self) -> Biterator<Self> {
+        Biterator::new(self)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -244,5 +288,12 @@ mod test {
         let bits = vec![One, Zero, Zero, One];
         let as_bools: Vec<bool> = bits.into_iter().map(|b| b.into()).collect();
         assert_eq!(as_bools, vec![true, false, false, true]);
+    }
+
+    #[test]
+    fn bits_extension() {
+        let bytes = [0b00110101];
+        let bits = bytes.iter().bits().collect::<Vec<_>>();
+        assert_eq!(bits, vec![Zero, Zero, One, One, Zero, One, Zero, One]);
     }
 }
