@@ -4,5 +4,9 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Thomas Castleman <thomascastleman0@gmail.com>"]
 description = "A crate for iterating over individual bits in a byte slice"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/thomascastleman/biterator.git"
+keywords = ["bits", "iterator"]
 
 [dependencies]

@@ -44,11 +44,25 @@ pub enum Bit {
 
 impl Bit {
     /// Check if this [`Bit`] is a zero bit.
+    ///
+    /// # Example
+    /// ```
+    /// # use biterator::Bit;
+    /// let bit = Bit::Zero;
+    /// assert!(bit.is_zero());
+    /// ```
     pub fn is_zero(&self) -> bool {
         *self == Bit::Zero
     }
 
     /// Check if this [`Bit`] is a one bit.
+    ///
+    /// # Example
+    /// ```
+    /// # use biterator::Bit;
+    /// let bit = Bit::One;
+    /// assert!(bit.is_one());
+    /// ```
     pub fn is_one(&self) -> bool {
         *self == Bit::One
     }
@@ -56,8 +70,29 @@ impl Bit {
 
 /// Bits can be converted into booleans (`1` signifying `true` and `0` signifying `false`).
 impl std::convert::From<Bit> for bool {
+    /// # Example
+    /// ```
+    /// # use biterator::Bit;
+    /// assert_eq!(bool::from(Bit::One), true);
+    /// assert_eq!(bool::from(Bit::Zero), false);
+    /// ```
     fn from(bit: Bit) -> Self {
         bit.is_one()
+    }
+}
+
+impl std::convert::From<bool> for Bit {
+    /// # Example
+    /// ```
+    /// # use biterator::Bit;
+    /// assert_eq!(Bit::from(true), Bit::One);
+    /// assert_eq!(Bit::from(false), Bit::Zero);
+    /// ```
+    fn from(b: bool) -> Self {
+        match b {
+            true => Bit::One,
+            false => Bit::Zero,
+        }
     }
 }
 
@@ -74,7 +109,7 @@ pub struct Biterator<'src> {
 }
 
 impl Biterator<'_> {
-    /// Construct a new `Biterator` to iterate over the [`Bit`]s in a given source,
+    /// Construct a new [`Biterator`] to iterate over the [`Bit`]s in a given source,
     /// which is a slice of bytes.
     pub fn new(source: &[u8]) -> Biterator<'_> {
         Biterator {
@@ -84,7 +119,8 @@ impl Biterator<'_> {
     }
 }
 
-/// [`Biterator`] implements [`Iterator`] to provide an iterator over [`Bit`]s.
+/// [`Biterator`] implements [`Iterator`] to provide an iterator over [`Bit`]s
+/// from the slice it was given as a source.
 impl std::iter::Iterator for Biterator<'_> {
     type Item = Bit;
 
