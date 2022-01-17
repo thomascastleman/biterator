@@ -110,6 +110,20 @@ impl std::convert::From<bool> for Bit {
     }
 }
 
+/// [`Bit`]s are displayed as either `1` or `0`.
+impl std::fmt::Display for Bit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Bit::Zero => 0,
+                Bit::One => 1,
+            }
+        )
+    }
+}
+
 /// The bit index of the leftmost bit in a byte.
 const LEFTMOST_BIT_INDEX: u8 = 7;
 /// The bit index of the rightmost bit in a byte.
