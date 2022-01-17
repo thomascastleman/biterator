@@ -1,4 +1,7 @@
 # biterator
+[![Crates.io](https://img.shields.io/crates/v/biterator.svg)](https://crates.io/crates/biterator)
+[![Documentation](https://docs.rs/biterator/badge.svg)](https://docs.rs/biterator/)
+
 This crate provides `Biterator`, an iterator over individual bits in a source of bytes.
 
 ### Example
