@@ -31,7 +31,9 @@
 //! );
 //! ```
 
-#[warn(missing_docs)]
+#![warn(missing_docs)]
+
+use std::borrow::Borrow;
 
 /// A single bit.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -101,46 +103,66 @@ const LEFTMOST_BIT_INDEX: u8 = 7;
 /// The bit index of the rightmost bit in a byte.
 const RIGHTMOST_BIT_INDEX: u8 = 0;
 
-/// An iterator over individual bits in a slice.
+/// An iterator over individual bits in a byte stream. It is generic over `I`, a type
+/// which implements an iterator over a type which can be borrowed as `u8`, which
+/// represents the source of bytes for the [`Biterator`].
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct Biterator<'src> {
-    source: &'src [u8],
-    bit_index: u8,
+pub struct Biterator<I> {
+    source_iter: I,
+    current_byte: Option<u8>,
+    current_bit_index: u8,
 }
 
-impl Biterator<'_> {
-    /// Construct a new [`Biterator`] to iterate over the [`Bit`]s in a given source,
-    /// which is a slice of bytes.
-    pub fn new(source: &[u8]) -> Biterator<'_> {
+impl<I, B> Biterator<I>
+where
+    I: Iterator<Item = B>,
+    B: Borrow<u8>,
+{
+    /// Construct a new [`Biterator`] to iterate over the [`Bit`]s in a given source.
+    /// Any type which can be converted into an iterator over items that can be
+    /// borrowed as `u8`s can be used as a source.
+    pub fn new<S>(source: S) -> Biterator<I>
+    where
+        S: IntoIterator<Item = B, IntoIter = I>,
+    {
         Biterator {
-            source,
-            bit_index: LEFTMOST_BIT_INDEX,
+            source_iter: source.into_iter(),
+            current_byte: None,
+            current_bit_index: LEFTMOST_BIT_INDEX,
         }
     }
 }
 
-/// [`Biterator`] implements [`Iterator`] to provide an iterator over [`Bit`]s
-/// from the slice it was given as a source.
-impl std::iter::Iterator for Biterator<'_> {
+/// [`Biterator`] implements [`Iterator`] to provide an iterator over [`Bit`]s from its byte source.
+impl<I, B> std::iter::Iterator for Biterator<I>
+where
+    I: Iterator<Item = B>,
+    B: Borrow<u8>,
+{
     type Item = Bit;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Extract the current byte we're pulling bits from--if there is none,
-        // then the Biterator is exhausted.
-        let byte = self.source.first()?;
+        // If current_byte is None, we need to draw from the source of bytes
+        if self.current_byte.is_none() {
+            self.current_byte = self.source_iter.next().map(|b| *b.borrow());
+        }
 
-        // Bitmask that will extract the bit indicated by bit_index
-        let current_bit_mask = 2u8.pow(self.bit_index as u32);
+        // Unwrap the byte, but if current_byte is still None here, then the
+        // source is exhausted--and so is the Biterator
+        let byte = self.current_byte?;
 
-        if self.bit_index == RIGHTMOST_BIT_INDEX {
-            // The rightmost bit of this byte has been reached, bit_index wraps
-            // and we move to the next byte of the source for the subsequent
-            // call to next().
-            self.source = &self.source[1..];
-            self.bit_index = LEFTMOST_BIT_INDEX;
+        // Bitmask that will extract the bit indicated by current_bit_index
+        let current_bit_mask = 2u8.pow(self.current_bit_index as u32);
+
+        if self.current_bit_index == RIGHTMOST_BIT_INDEX {
+            // The rightmost bit of this byte has been reached: current_bit_index wraps
+            // and we mark current_byte as None to indicate that a subsequent
+            // call to next() should pull from the byte source.
+            self.current_byte = None;
+            self.current_bit_index = LEFTMOST_BIT_INDEX;
         } else {
             // Move one position to the right
-            self.bit_index -= 1;
+            self.current_bit_index -= 1;
         }
 
         if byte & current_bit_mask > 0 {
@@ -186,6 +208,34 @@ mod test {
                 One,  One,  One,  One,  One,  Zero, One,  One,
                 One,  Zero, Zero, Zero, One,  One,  Zero, Zero
             ]
+        );
+    }
+
+    #[test]
+    fn works_with_many_types() {
+        #[rustfmt::skip]
+        let expected_bits = vec![
+            Zero, Zero, Zero, Zero, Zero, Zero, Zero, One, 
+            Zero, Zero, Zero, Zero, Zero, Zero, One, Zero, 
+            Zero, Zero, Zero, Zero, Zero, Zero, One, One,
+        ];
+
+        let from_vec = Biterator::new(vec![1u8, 2u8, 3u8]);
+        assert_eq!(from_vec.collect::<Vec<_>>(), expected_bits);
+
+        let from_array = Biterator::new([1u8, 2u8, 3u8]);
+        assert_eq!(from_array.collect::<Vec<_>>(), expected_bits);
+
+        let from_slice = Biterator::new(&[1u8, 2u8, 3u8]);
+        assert_eq!(from_slice.collect::<Vec<_>>(), expected_bits);
+
+        let from_other_iter = Biterator::new([1u8, 2u8, 3u8].into_iter().filter(|b| *b < 100));
+        assert_eq!(from_other_iter.collect::<Vec<_>>(), expected_bits);
+
+        let from_option = Biterator::new(Some(0b11001100));
+        assert_eq!(
+            from_option.collect::<Vec<_>>(),
+            vec![One, One, Zero, Zero, One, One, Zero, Zero]
         );
     }
 
