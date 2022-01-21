@@ -1,15 +1,15 @@
 //! This crate provides [`Biterator`], a type for iterating over individual bits
 //! in a stream of bytes.
 //!
-//! # Example
+//! # Examples
 //! ```
 //! use biterator::{Biterator, Bit::*};
 //!
 //! let bytes = [0b00001111, 0b10101011];
-//! let b = Biterator::new(&bytes);
+//! let bits: Vec<_> = Biterator::new(&bytes).collect();
 //!
 //! assert_eq!(
-//!     b.collect::<Vec<_>>(),
+//!     bits,
 //!     vec![
 //!         Zero, Zero, Zero, Zero, One, One,  One, One,
 //!         One,  Zero, One,  Zero, One, Zero, One, One,
@@ -19,12 +19,16 @@
 //!
 //! Use it to find which bits are set in a stream:
 //! ```
-//! use biterator::{Biterator, Bit};
+//! use biterator::{Biterator, Bit, BiteratorExt};
 //!
 //! let bytes = [0b00110101];
-//! let b = Biterator::new(&bytes);
+//! let set_bits: Vec<_> = bytes
+//!     .iter()
+//!     .bits()
+//!     .enumerate()
+//!     .filter(|(_, bit)| bit.is_one())
+//!     .collect();
 //!
-//! let set_bits: Vec<(usize, Bit)> = b.enumerate().filter(|(_, bit)| bit.is_one()).collect();
 //! assert_eq!(
 //!     set_bits,
 //!     vec![(2, Bit::One), (3, Bit::One), (5, Bit::One), (7, Bit::One)]
@@ -38,7 +42,7 @@
 //! // There are 10 zeros here
 //! let buf = [0b00110011, 0b11001111, 0b01010101];
 //!
-//! let zero_bit_count= buf.iter().bits().filter(|&b| b.is_zero()).count();
+//! let zero_bit_count = buf.iter().bits().filter(|&b| b.is_zero()).count();
 //! assert_eq!(zero_bit_count, 10);
 //! ```
 
@@ -139,17 +143,17 @@ pub struct Biterator<I> {
     current_bit_index: u8,
 }
 
-impl<I, B> Biterator<I>
+impl<I> Biterator<I>
 where
-    I: Iterator<Item = B>,
-    B: Borrow<u8>,
+    I: Iterator,
+    I::Item: Borrow<u8>,
 {
     /// Construct a new [`Biterator`] to iterate over the [`Bit`]s in a given source.
     /// Any type which can be converted into an iterator over items that can be
     /// borrowed as `u8`s can be used as a source.
     pub fn new<S>(source: S) -> Biterator<I>
     where
-        S: IntoIterator<Item = B, IntoIter = I>,
+        S: IntoIterator<Item = I::Item, IntoIter = I>,
     {
         Biterator {
             source_iter: source.into_iter(),
@@ -160,11 +164,12 @@ where
 }
 
 /// [`Biterator`] implements [`Iterator`] to provide an iterator over [`Bit`]s from its byte source.
-impl<I, B> std::iter::Iterator for Biterator<I>
+impl<I> std::iter::Iterator for Biterator<I>
 where
-    I: Iterator<Item = B>,
-    B: Borrow<u8>,
+    I: Iterator,
+    I::Item: Borrow<u8>,
 {
+    /// The [`Biterator`] iterates over [`Bit`]s.
     type Item = Bit;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -214,21 +219,23 @@ where
 ///
 /// assert_eq!(ones_in_nums_over_three, 3);
 /// ```
-pub trait BiteratorExt: Iterator + Sized {
-    /// Converts this type into a [`Biterator`].
-    fn bits(self) -> Biterator<Self>;
-}
-
-/// [`BiteratorExt`] is implemented for any iterator over items which can be borrowed
-/// as `u8`s. The implementation simply calls [`Biterator::new`].
-impl<Iter, B> BiteratorExt for Iter
+pub trait BiteratorExt: Iterator + Sized
 where
-    Iter: Iterator<Item = B>,
-    B: Borrow<u8>,
+    Self::Item: Borrow<u8>,
 {
+    /// Converts this type into a [`Biterator`]. Simply calls [`Biterator::new`].
     fn bits(self) -> Biterator<Self> {
         Biterator::new(self)
     }
+}
+
+/// Blanket implementation of [`BiteratorExt`] for any type which satisfies its
+/// trait bounds. Uses the default implementation of `bits()`.
+impl<I> BiteratorExt for I
+where
+    I: Iterator,
+    I::Item: Borrow<u8>,
+{
 }
 
 #[cfg(test)]

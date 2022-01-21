@@ -1,6 +1,6 @@
 [package]
 name = "biterator"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Thomas Castleman <thomascastleman0@gmail.com>"]
 description = "A crate for iterating over individual bits in a byte stream"
